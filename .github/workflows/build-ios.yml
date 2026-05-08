@@ -1,0 +1,32 @@
+name: Build MAUI iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install MAUI
+        run: dotnet workload install maui
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build iOS
+        run: |
+          dotnet publish -f net8.0-ios -c Release /p:BuildIpa=true /p:EnableCodeSigning=false
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: "**/*.ipa"
