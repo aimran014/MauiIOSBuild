@@ -1,0 +1,247 @@
+﻿@page "/rekodimbasan"
+@using TamsMobile.Models
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject NavigationManager NavManager
+@inject AttendanceService AttendanceService
+@inject ProfileService ProfileService
+
+
+
+<style>
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+    .profile-image-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        border: 2px solid rgba(255,255,255,0.3);
+    }
+</style>
+
+
+<div class="hide-scrollbar"
+     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color:#f5f5f7; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
+
+    <div class="d-flex flex-column px-4 pt-6 pb-10"
+         style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+
+        <div class="d-flex justify-space-between align-center w-100 mb-6">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@(() => NavManager.NavigateTo("/dashboard"))"
+                           Style="color: white;" />
+
+            <MudText Typo="Typo.h6" Style="color: white; font-weight: 700;">Sejarah Rekod Imbasan</MudText>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Disabled="@isLoading"
+                           OnClick="LoadRekodImbasan"
+                           Style="color: rgba(255,255,255,0.9);" />
+
+        </div>
+
+        <!-- Summary Profile -->
+        <div class="d-flex align-center px-2 mb-4">
+            @{
+                var profileImageSource = ProfileService.GetProfileImageSourceAsync(SessionManager.UserProfile!);
+            }
+
+            @if (!string.IsNullOrWhiteSpace(profileImageSource.Result))
+            {
+                <img src="@profileImageSource.Result"
+                     alt="Profile"
+                     class="profile-image-avatar mr-3 elevation-2" />
+            }
+            else
+            {
+                <MudAvatar Color="Color.Surface" Size="Size.Medium" Class="mr-3 elevation-2">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">
+                        @GetInitials(SessionManager.UserProfile?.UserFullname)
+                    </MudText>
+                </MudAvatar>
+            }
+
+            <div style="line-height: 1.2;">
+                <MudText Typo="Typo.subtitle2" Style="color: white; font-weight: 700;">@SessionManager.UserProfile?.UserFullname</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">@SessionManager.GetDepartmentName()</MudText>
+                <MudText Typo="Typo.subtitle2" Style="color: rgba(255,255,255,0.8);">@SessionManager.GetMykadNumber()</MudText>
+            </div>
+
+        </div>
+
+        <!-- Date Picker -->
+        <MudPaper Class="pa-3 rounded-xl" Elevation="0" Style="background-color: rgba(255,255,255,0.95);">
+            <MudDatePicker Label="Pilih Tarikh"
+                           @bind-Date="selectedDate"
+                           DateFormat="dd/MM/yyyy"
+                           OpenTo="OpenTo.Date"
+                           Editable="false"
+                           Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           DisableToolbar="false"
+                           AdornmentIcon="@Icons.Material.Filled.CalendarMonth"
+                           Adornment="Adornment.Start"
+                           Margin="Margin.Dense"
+                           Placeholder="Contoh: 08/02/2026" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       OnClick="LoadDataForSelectedDate"
+                       Disabled="@(isLoading || selectedDate == null)"
+                       Class="mt-2"
+                       StartIcon="@Icons.Material.Filled.Search">
+                Papar Rekod Kehadiran
+            </MudButton>
+        </MudPaper>
+
+    </div>
+     
+
+    <MudContainer MaxWidth="MaxWidth.False" Class="mt-n10 px-6 pb-6">
+
+        @if (isLoading)
+        {
+            <MudPaper Class="d-flex flex-column align-center justify-center py-12 rounded-xl mt-4"
+                      Elevation="0"
+                      Style="background-color: transparent;">
+
+                <MudProgressCircular Indeterminate="true"
+                                     Color="Color.Primary"
+                                     Size="Size.Large" />
+
+                <MudText Typo="Typo.subtitle1" Class="mt-4" Color="Color.Secondary">
+                    Sedang memuatkan rekod...
+                </MudText>
+
+            </MudPaper>
+        }
+        else if (rekodImbasanModels != null && rekodImbasanModels.Any())
+        {
+            @foreach (var rekod in rekodImbasanModels)
+            {
+                <MudPaper Class="pa-5 rounded-xl mb-4" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div class="d-flex align-center mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Today" Color="Color.Primary" Class="mr-2" />
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">
+                            @rekod.ParsedDate.ToString("dd/MM/yyyy")
+                        </MudText>
+                    </div>
+
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex justify-space-between align-center pa-3 rounded-lg"
+                             style="background-color: #f8f9fa; border-left: 4px solid var(--mud-palette-primary);">
+                            <div>
+                                <MudText Typo="Typo.caption" Style="color: #666;">MASA IMBASAN</MudText>
+                                <MudText Typo="Typo.body1" Style="font-weight: 700; color: var(--mud-palette-primary);">
+                                    @rekod.MasaImbasan
+                                </MudText>
+
+                                <MudText Typo="Typo.caption" Style="color: #666;">LOKASI</MudText>
+                                <MudText Typo="Typo.body1" Style="font-weight: 700; color: var(--mud-palette-primary);">
+                                    @rekod.LokasiImbasan
+                                </MudText>
+                            </div>
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        }
+        else
+        {
+            <MudPaper Class="d-flex flex-column align-center justify-center py-12 rounded-xl mt-4"
+                      Elevation="0"
+                      Style="background-color: transparent;">
+
+                <MudIcon Icon="@Icons.Material.Filled.EventBusy"
+                         Size="Size.Large"
+                         Color="Color.Default"
+                         Style="font-size: 4rem; opacity: 0.5;" />
+
+                <MudText Typo="Typo.subtitle1" Class="mt-4" Color="Color.Secondary">
+                    Tiada rekod dijumpai
+                </MudText>
+
+            </MudPaper>
+        }
+
+    </MudContainer>
+
+</div>  
+     
+@code {
+    private DateTime? selectedDate = DateTime.Now;
+    private bool isLoading = false;
+    private string errorMessage = "";
+    private List<RekodImbasanModel> rekodImbasanModels = new();
+
+    protected override void OnInitialized()
+    {
+        if (!SessionManager.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/");
+        }
+    }
+
+    string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "??";
+        var names = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (names.Length == 1) return names[0].Substring(0, Math.Min(2, names[0].Length)).ToUpper();
+        return $"{names[0][0]}{names[^1][0]}".ToUpper();
+    }
+
+    async Task LoadDataForSelectedDate()
+    {
+        if (selectedDate == null)
+        {
+            errorMessage = "Sila pilih tarikh terlebih dahulu.";
+            return;
+        }
+
+        await LoadRekodImbasan();
+    }
+
+    async Task LoadRekodImbasan()
+    {
+        if (selectedDate == null) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var rawRecords = await AttendanceService.GetRekodImbasanKakitanganAsync();
+
+            if (rawRecords != null)
+            {
+                rawRecords.Data = rawRecords.Data?
+                    .Where(r => r.ParsedDate.Date == selectedDate.Value.Date).OrderByDescending(r => r.ParsedDate.Date).ToList();
+                rekodImbasanModels = rawRecords?.Data ?? new List<RekodImbasanModel>();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Gagal memuatkan rekod.";
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+}

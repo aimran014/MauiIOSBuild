@@ -1,0 +1,426 @@
+﻿@page "/kemaskiniattendance"
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject NavigationManager NavManager
+@inject UrusanService UrusanService
+@inject KemaskiniAttendanceService KemaskiniAttendanceService
+@inject AttendanceService AttendanceService
+@inject ProfileService ProfileService
+@inject ISnackbar Snackbar
+
+
+@inject ILogger<Dashboard> Logger
+
+
+@using Microsoft.Extensions.Logging
+@using TamsMobile.Models
+@using static TamsMobile.Models.KemaskiniAttendanceModel
+
+<style>
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+    .profile-image-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        border: 2px solid rgba(255,255,255,0.3);
+    }
+</style>
+
+<div class="hide-scrollbar"
+     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color:#f5f5f7; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
+
+    <div class="d-flex flex-column px-4 pt-6 pb-10"
+         style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+
+        <div class="d-flex justify-space-between align-center w-100 mb-6">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@(() => NavManager.NavigateTo("/attendance"))"
+                           Style="color: white;" />
+
+            <MudText Typo="Typo.h6" Style="color: white; font-weight: 700;">Kemaskini Rekod Kehadiran</MudText>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Color="Color.Inherit"
+                           Edge="Edge.End"
+                           Style="color: rgba(255,255,255,0.9);" />
+
+        </div>
+
+        <!-- Summary Profile -->
+        <div class="d-flex align-center px-2 mb-4">
+            @{
+                var profileImageSource = ProfileService.GetProfileImageSourceAsync(SessionManager.UserProfile!);
+            }
+
+            @if (!string.IsNullOrWhiteSpace(profileImageSource.Result))
+            {
+                <img src="@profileImageSource.Result"
+                     alt="Profile"
+                     class="profile-image-avatar mr-3 elevation-2" />
+            }
+            else
+            {
+                <MudAvatar Color="Color.Surface" Size="Size.Medium" Class="mr-3 elevation-2">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">
+                        @GetInitials(SessionManager.UserProfile?.UserFullname)
+                    </MudText>
+                </MudAvatar>
+            }
+
+            <div style="line-height: 1.2;">
+                <MudText Typo="Typo.subtitle2" Style="color: white; font-weight: 700;">@SessionManager.UserProfile?.UserFullname</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">@SessionManager.GetDepartmentName()</MudText>
+                <MudText Typo="Typo.subtitle2" Style="color: rgba(255,255,255,0.8);">@SessionManager.GetMykadNumber()</MudText>
+            </div>
+        </div>
+
+     </div>
+
+    <!-- Kemaskini Forms -->
+     <MudContainer MaxWidth="MaxWidth.False" Class="mt-n10 px-6 pb-6">
+
+        <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6" Style="background-color: white; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+
+            @if (attendanceId == 0)
+            {
+                <MudAlert Severity="Severity.Error">
+                    Rekod Kehadiran Tidak Wujud. Sila semak rekod kehadiran pada web.
+                </MudAlert>
+            }
+
+
+            <div class="d-flex justify-space-between align-center mb-4 border-b pb-3">
+                <div class="d-flex flex-column">
+                    <MudText Typo="Typo.caption" Style="color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Tarikh Kehadiran (DD/MM/YYYY)</MudText>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: 800;">
+                        @attendanceRecord.ParsedDate.ToString("dd/MM/yyyy")
+                    </MudText>
+                </div>
+                @* <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled" Class="mr-0" Style="font-weight: 700;">Tiada Rekod</MudChip> *@
+            </div>
+
+            <!-- details kehadiran -->
+            <MudGrid Spacing="0">
+                <MudItem xs="5" Class="d-flex flex-column border-r pr-3">
+                    <MudText Typo="Typo.caption" Style="color: #999;">Waktu Masuk</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1 text-truncate">
+                        @(attendanceRecord.AttendanceTagIn == null ? "- - -" : attendanceRecord.AttendanceTagIn)
+                    </MudText>
+
+                    <br />
+
+                    <MudText Typo="Typo.caption" Style="color: #999;">Waktu Keluar</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1">
+                        @(attendanceRecord.AttendanceTagOut == null ? "- - -" : attendanceRecord.AttendanceTagOut)
+                    </MudText>
+
+                    <br/>
+                    <MudText Typo="Typo.caption" Style="color: #999;">Nama Pegawai Pelulus</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1">
+                        @GetInitials(SessionManager.GetPelulusName())
+                    </MudText>
+                </MudItem>
+
+                <MudItem xs="4" Class="d-flex flex-column pl-4">
+                    <MudText Typo="Typo.caption" Style="color: #999;">Status Permohonan</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1 text-truncate">
+
+                        @if (kemaskiniDetails.status_name != null)
+                        {
+                            <MudChip T="string" Color="@(kemaskiniDetails.status_name == "Diluluskan" ? Color.Success 
+                                                       : kemaskiniDetails.status_name == "Dalam Permohonan" ? Color.Warning 
+                                                       : Color.Error)" 
+                                    Size="Size.Small" Variant="Variant.Filled" Class="mr-0" Style="font-weight: 700;">
+                            @(kemaskiniDetails.status_name == "Diluluskan" ? "Lulus" 
+                            : kemaskiniDetails.status_name == "Dalam Permohonan" ? "Dalam Permohonan" 
+                            : "Ditolak")
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled" Class="mr-0" Style="font-weight: 700;">- - -</MudChip>
+                        }
+                    </MudText>
+
+                    <MudText Typo="Typo.caption" Style="color: #999;">Diluluskan Oleh</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1">
+                        @(kemaskiniDetails.KemaskiniApprovedByName == null ? "- - -" : kemaskiniDetails.KemaskiniApprovedByName)
+                    </MudText>
+
+                    <MudText Typo="Typo.caption" Style="color: #999;">Tarikh Diluluskan</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1">
+                        @(kemaskiniDetails.KemaskiniApprovedDate == null ? "- - -" : kemaskiniDetails.KemaskiniApprovedDate)
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- forms kemaskini kehadiran -->
+        <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6"
+                  Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+
+            <MudPaper Class="pa-5 rounded-xl mb-4" Elevation="0"
+                      Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+
+                <MudForm @ref="_form">
+
+                    <!-- Header -->
+                    <div class="d-flex align-center mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth"
+                                 Color="Color.Primary" Class="mr-2" />
+                        <MudText Typo="Typo.subtitle1"
+                                 Style="font-weight: 700; color: #333;">
+                            Ringkasan Kemaskini Kehadiran
+                        </MudText>
+                    </div>
+
+                    <!-- Form Fields -->
+                    <div class="d-flex flex-column gap-3">
+
+                        <MudSelect T="string" Label="Jenis Urusan" Value="UrusanSelected" ValueChanged="OnJenisChanged" ValueExpression="() => UrusanSelected">
+                            @foreach (var item in JenisUrusan!.Select(x => x.UrusanName))
+                            {
+                                <MudSelectItem Value="@item">@item</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudSelect T="string"
+                                   Label="Alasan"
+                                   @bind-Value="AlasanSelected"
+                                   Variant="Variant.Outlined"
+                                   Disabled="@(JenisAlasan == null || !JenisAlasan.Any())">
+
+                            @foreach (var item in JenisAlasan!.Select(x => x.AlasanName))
+                            {
+                                <MudSelectItem Value="@item">@item</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudTextField Label="Keterangan"
+                                      @bind-Value="Keterangan"
+                                      Variant="Variant.Outlined"
+                                      Lines="3" />
+
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-flex justify-end mt-4">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   OnClick="SubmitKemaskini">
+                            Hantar
+                        </MudButton>
+                    </div>
+
+                </MudForm>
+
+            </MudPaper>
+        </MudPaper>
+
+
+     </MudContainer>
+
+    <div class="d-flex justify-center mt-8 pb-8">
+        <MudText Typo="Typo.caption" Style="color: #bdbdbd;">v1.0.0</MudText>
+    </div>
+
+ </div>
+
+
+@code {
+    private MudForm _form;
+
+    private async Task Submit()
+    {
+        await _form.Validate();
+
+        if (_form.IsValid)
+        {
+            // Handle submit (API / DB / etc.)
+            Console.WriteLine("Submitted!");
+        }
+    }
+
+
+    private string? UrusanSelected;
+    private string? AlasanSelected;
+    private string? Keterangan;
+    private List<UrusanModel>? AllUrusan = new();
+    private List<UrusanModel>? JenisUrusan = new();
+    private List<UrusanModel>? JenisAlasan = new();
+    private int attendanceId;
+    private KemaskiniDetails kemaskiniDetails = new();
+    private AttendanceRecord attendanceRecord = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SessionManager.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/");
+        }
+
+        var uri = NavManager.ToAbsoluteUri(NavManager.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        attendanceId = Convert.ToInt32(query["id"]);
+
+        await LoadUrusanData();
+        await LoadKemaskiniAttendanceDetails(attendanceId);
+        await LoadUrusanData();
+    }
+
+    async Task LoadUrusanData()
+    {
+        try
+        {
+            var result = await UrusanService.GetUrusanLists();
+
+            AllUrusan = result.Data ?? new List<UrusanModel>();
+
+            JenisUrusan = (result.Data ?? new List<UrusanModel>())
+                .GroupBy(x => x.UrusanId)
+                .Select(g => g.First())
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load today's attendance");
+            AllUrusan = new();
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void OnJenisChanged(string selectedJenis)
+    {
+        //model.JenisUrusan = selectedJenis;
+
+        UrusanSelected = selectedJenis;
+
+        // Filter based on selected Jenis
+        JenisAlasan = AllUrusan?.Where(x => x.UrusanName == selectedJenis).ToList();
+
+
+        // JenisAlasan = model.JenisUrusan
+        //             .Where(x => x.UrusanName == selectedJenis)
+        //             .Select(x => x.AlasanName)
+        //             .Where(x => !string.IsNullOrEmpty(x)) // ✅ remove nulls
+        //             .Select(x => x!) // tell compiler it's safe
+        //             .Distinct()
+        //             .ToList();
+
+        // Reset selected Alasan
+        StateHasChanged();
+
+        //return Task.CompletedTask; // ✅ FIX
+    }
+
+    string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "??";
+        var names = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (names.Length == 1) return names[0].Substring(0, Math.Min(2, names[0].Length)).ToUpper();
+        return $"{names[0][0]}{names[^1][0]}".ToUpper();
+    }
+
+    async Task LoadKemaskiniAttendanceDetails(int AttId)
+    {
+        try
+        {
+            var GetKemaskiniDetails = await KemaskiniAttendanceService.LoadKemaskiniDetails(AttId);
+            var GetAttendanceDetails = await AttendanceService.GetAttendanceDetailsAsync(AttId);
+
+            kemaskiniDetails = GetKemaskiniDetails.Data ?? new KemaskiniDetails();
+            attendanceRecord = GetAttendanceDetails.Data ?? new AttendanceRecord();
+
+            if(kemaskiniDetails.AttendanceId != null)
+            {
+                UrusanSelected = AllUrusan?.Where(x => x.UrusanId == kemaskiniDetails.UrusanId).Select(s => s.UrusanName).FirstOrDefault();
+                AlasanSelected = AllUrusan?.Where(x => x.AlasanId == kemaskiniDetails.AlasanId).Select(s => s.AlasanName).FirstOrDefault();
+                Keterangan = kemaskiniDetails.KemaskiniNoteIn;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load attendance details for ID {AttendanceId}", attendanceId);
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task SubmitKemaskini()
+    {
+        await _form.Validate();
+
+        if (_form.IsValid)
+        {
+            try
+            {
+                KemaskiniAttendanceRequestModel RequestModel = new KemaskiniAttendanceRequestModel();
+                KemaskiniAttendanceAddModel AddRequest = new KemaskiniAttendanceAddModel();
+                KemaskiniAttendanceUpdateModel UpdateRequest = new KemaskiniAttendanceUpdateModel();
+
+                var group_key = $"{SessionManager?.UserProfile?.UserId.ToString()}_{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")}";
+
+                if (kemaskiniDetails.AttendanceId != null)
+                {
+                    UpdateRequest.attendance_id = attendanceId.ToString();
+                    UpdateRequest.user_id = SessionManager?.UserProfile?.UserId.ToString();
+                    UpdateRequest.jenis_id =AllUrusan?.Where(x => x.UrusanName == UrusanSelected).Select(s => s.UrusanId).FirstOrDefault();
+                    UpdateRequest.alasan_id = AllUrusan?.Where(x => x.AlasanName == AlasanSelected).Select(s => s.AlasanId).FirstOrDefault();
+                    UpdateRequest.kemaskini_noteIn = Keterangan;
+                }
+                else
+                {
+                    AddRequest.kemaskini_date = attendanceRecord.ParsedDate.ToString("yyyy-MM-dd 00:00:00.000");
+                    AddRequest.kemaskini_groupKey = group_key;
+                    AddRequest.attendance_id = attendanceId.ToString();
+                    AddRequest.user_id = SessionManager?.UserProfile?.UserId.ToString();
+                    AddRequest.jenis_id = AllUrusan?.Where(x => x.UrusanName == UrusanSelected).Select(s => s.UrusanId).FirstOrDefault();
+                    AddRequest.alasan_id = AllUrusan?.Where(x => x.AlasanName == AlasanSelected).Select(s => s.AlasanId).FirstOrDefault();
+                    AddRequest.kemaskini_noteIn = Keterangan;
+                }
+
+                RequestModel.addKemasKini = AddRequest;
+                RequestModel.updateKemasKini = UpdateRequest;
+                RequestModel.pelulusKemaskini = new KemaskiniAttendancePelulusModel();
+                RequestModel.deleteKemasKiniId = string.Empty;
+
+                var result = await KemaskiniAttendanceService.ProcessKemaskiniAttendance(RequestModel);
+                // Implement submission logic here (API call, validation, etc.)
+                if (result != null && result.Success)
+                {
+                    Snackbar.Add("Kemaskini berjaya dihantar", Severity.Success);
+                    NavManager.NavigateTo("/attendance");
+                }
+                else
+                {
+                    Snackbar.Add("Kemaskini gagal dihantar", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to submit kemaskini attendance");
+            }
+
+        }
+    }
+
+
+}

@@ -1,0 +1,321 @@
+@page "/approval-management"
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject NavigationManager NavManager
+@inject ApprovalService ApprovalService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject ILogger<ApprovalManagement> Logger
+@using Microsoft.Extensions.Logging
+@using TamsMobile.Models
+
+<style>
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+    .request-card {
+        transition: all 0.3s ease;
+    }
+
+        .request-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+        }
+</style>
+
+<div class="hide-scrollbar"
+     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color:#f5f5f7; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
+
+    <!-- Header -->
+    <div class="d-flex flex-column px-4 pt-6 pb-10"
+         style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+
+        <div class="d-flex justify-space-between align-center w-100 mb-6">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@(() => NavManager.NavigateTo("/dashboard"))"
+                           Style="color: white;" />
+
+            <MudText Typo="Typo.h6" Style="color: white; font-weight: 700;">Pengurusan Kelulusan</MudText>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Color="Color.Inherit"
+                           Edge="Edge.End"
+                           OnClick="LoadData"
+                           Disabled="@isLoading"
+                           Style="color: rgba(255,255,255,0.9);" />
+        </div>
+
+        <!-- Stats Cards -->
+        <MudGrid Spacing="2">
+            <MudItem xs="4">
+                <div class="pa-3 rounded-lg text-center" style="background-color: rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+                    <MudText Typo="Typo.h5" Style="color: white; font-weight: 800;">@pendingRequests.Count</MudText>
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9); font-weight: 600;">PENDING</MudText>
+                </div>
+            </MudItem>
+            <MudItem xs="4">
+                <div class="pa-3 rounded-lg text-center" style="background-color: rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+                    <MudText Typo="Typo.h5" Style="color: white; font-weight: 800;">@alasanRasmi.Count</MudText>
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9); font-weight: 600;">RASMI</MudText>
+                </div>
+            </MudItem>
+            <MudItem xs="4">
+                <div class="pa-3 rounded-lg text-center" style="background-color: rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+                    <MudText Typo="Typo.h5" Style="color: white; font-weight: 800;">@alasanTidakRasmi.Count</MudText>
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9); font-weight: 600;">TIDAK RASMI</MudText>
+                </div>
+            </MudItem>
+        </MudGrid>
+    </div>
+
+    <MudContainer MaxWidth="MaxWidth.False" Class="mt-n8 px-4 pb-6">
+
+        <!-- Tabs -->
+        <MudPaper Class="pa-2 rounded-xl mb-4" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+            <MudTabs Elevation="0" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="activeTab">
+                <MudTabPanel Text="Permohonan" Icon="@Icons.Material.Filled.Pending" />
+                <MudTabPanel Text="Alasan Rasmi" Icon="@Icons.Material.Filled.WorkOutline" />
+                <MudTabPanel Text="Alasan Tidak Rasmi" Icon="@Icons.Material.Filled.EventNote" />
+            </MudTabs>
+        </MudPaper>
+
+        @if (isLoading)
+        {
+            @for (int i = 0; i < 3; i++)
+            {
+                <MudPaper Class="pa-4 mb-3 rounded-xl" Elevation="0">
+                    <MudSkeleton Width="60%" Height="20px" Class="mb-2" />
+                    <MudSkeleton Width="40%" Height="15px" Class="mb-2" />
+                    <MudSkeleton Width="100%" Height="40px" />
+                </MudPaper>
+            }
+        }
+        else
+        {
+            @if (activeTab == 0)
+            {
+                @if (pendingRequests.Count == 0)
+                {
+                    <MudPaper Class="d-flex flex-column align-center justify-center py-12 rounded-xl" Elevation="0" Style="background-color: transparent;">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                 Size="Size.Large"
+                                 Color="Color.Success"
+                                 Style="font-size: 4rem; opacity: 0.5;" />
+                        <MudText Typo="Typo.subtitle1" Class="mt-4" Color="Color.Secondary">Tiada permohonan pending</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    @foreach (var request in pendingRequests)
+                    {
+                        <MudPaper Class="request-card pa-4 mb-3 rounded-xl" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                            <div class="d-flex justify-space-between align-center mb-3 pb-2 border-b">
+                                <div>
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">@request.UserName</MudText>
+                                    <MudText Typo="Typo.caption" Style="color: #888;">@request.Department</MudText>
+                                </div>
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" Style="font-weight: 700;">
+                                    @request.RequestType
+                                </MudChip>
+                            </div>
+
+                            <MudGrid Spacing="2" Class="mb-3">
+                                <MudItem xs="6">
+                                    <MudText Typo="Typo.caption" Style="color: #888;">Tarikh</MudText>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@request.FormattedDate</MudText>
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudText Typo="Typo.caption" Style="color: #888;">Masuk</MudText>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@request.TimeIn</MudText>
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudText Typo="Typo.caption" Style="color: #888;">Keluar</MudText>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@request.TimeOut</MudText>
+                                </MudItem>
+                            </MudGrid>
+
+                            <div class="pa-3 rounded-lg mb-3" style="background-color: #f8f9fa;">
+                                <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;">Alasan:</MudText>
+                                <MudText Typo="Typo.body2" Style="color: #333;">@request.Reason</MudText>
+                                @if (!string.IsNullOrEmpty(request.Notes))
+                                {
+                                    <MudText Typo="Typo.body2" Style="color: #666; font-style: italic;" Class="mt-1">@request.Notes</MudText>
+                                }
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Success"
+                                           StartIcon="@Icons.Material.Filled.Check"
+                                           FullWidth="true"
+                                           OnClick="@(() => ApproveRequest(request))">
+                                    Lulus
+                                </MudButton>
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Error"
+                                           StartIcon="@Icons.Material.Filled.Close"
+                                           FullWidth="true"
+                                           OnClick="@(() => RejectRequest(request))">
+                                    Tolak
+                                </MudButton>
+                            </div>
+                        </MudPaper>
+                    }
+                }
+            }
+            else if (activeTab == 1)
+            {
+                @foreach (var alasan in alasanRasmi)
+                {
+                    <MudPaper Class="d-flex align-center pa-4 mb-3 rounded-xl" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                        <div class="d-flex align-center justify-center rounded-lg mr-3"
+                             style="width: 48px; height: 48px; background-color: #e3f2fd;">
+                            <MudIcon Icon="@Icons.Material.Filled.WorkOutline" Color="Color.Info" Size="Size.Medium" />
+                        </div>
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight: 700; color: #333;">@alasan.AlasanName</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #888;">@alasan.JenisName</MudText>
+                        </div>
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">AKTIF</MudChip>
+                    </MudPaper>
+                }
+            }
+            else if (activeTab == 2)
+            {
+                @foreach (var alasan in alasanTidakRasmi)
+                {
+                    <MudPaper Class="d-flex align-center pa-4 mb-3 rounded-xl" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                        <div class="d-flex align-center justify-center rounded-lg mr-3"
+                             style="width: 48px; height: 48px; background-color: #fff3e0;">
+                            <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Warning" Size="Size.Medium" />
+                        </div>
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight: 700; color: #333;">@alasan.AlasanName</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #888;">@alasan.JenisName</MudText>
+                        </div>
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">AKTIF</MudChip>
+                    </MudPaper>
+                }
+            }
+        }
+
+    </MudContainer>
+</div>
+
+@code {
+    private List<PendingApprovalRequest> pendingRequests = new();
+    private List<JenisAlasan> alasanRasmi = new();
+    private List<JenisAlasan> alasanTidakRasmi = new();
+    private bool isLoading = false;
+    private int activeTab = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SessionManager.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/");
+            return;
+        }
+
+        // Check if user has approval permissions
+        if (!SessionManager.CanApproveRequests())
+        {
+            Snackbar.Add("Anda tidak mempunyai kebenaran untuk mengakses halaman ini", Severity.Error);
+            NavManager.NavigateTo("/dashboard");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load pending approvals
+            pendingRequests = await ApprovalService.GetPendingApprovalsAsync();
+
+            // Load Alasan Rasmi
+            var rasmiResponse = await ApprovalService.GetAlasanRasmiAsync();
+            alasanRasmi = rasmiResponse?.Data ?? new List<JenisAlasan>();
+
+            // Load Alasan Tidak Rasmi
+            var tidakRasmiResponse = await ApprovalService.GetAlasanTidakRasmiAsync();
+            alasanTidakRasmi = tidakRasmiResponse?.Data ?? new List<JenisAlasan>();
+
+            Logger.LogInformation("Loaded {PendingCount} pending requests, {RasmiCount} rasmi, {TidakRasmiCount} tidak rasmi",
+                pendingRequests.Count, alasanRasmi.Count, alasanTidakRasmi.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load approval data");
+            Snackbar.Add("Gagal memuatkan data kelulusan", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task ApproveRequest(PendingApprovalRequest request)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Lulus Permohonan",
+            $"Adakah anda pasti untuk meluluskan permohonan daripada {request.UserName}?",
+            yesText: "Lulus",
+            cancelText: "Batal"
+        );
+
+        if (confirmed == true)
+        {
+            var (success, message) = await ApprovalService.ApproveRequestAsync(request.RequestId, "Diluluskan");
+            
+            if (success)
+            {
+                Snackbar.Add(message, Severity.Success);
+                await LoadData();
+            }
+            else
+            {
+                Snackbar.Add(message, Severity.Error);
+            }
+        }
+    }
+
+    async Task RejectRequest(PendingApprovalRequest request)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Tolak Permohonan",
+            $"Adakah anda pasti untuk menolak permohonan daripada {request.UserName}?",
+            yesText: "Tolak",
+            cancelText: "Batal"
+        );
+
+        if (confirmed == true)
+        {
+            var (success, message) = await ApprovalService.RejectRequestAsync(request.RequestId, "Ditolak");
+            
+            if (success)
+            {
+                Snackbar.Add(message, Severity.Success);
+                await LoadData();
+            }
+            else
+            {
+                Snackbar.Add(message, Severity.Error);
+            }
+        }
+    }
+}

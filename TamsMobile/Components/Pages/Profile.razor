@@ -1,0 +1,291 @@
+@page "/profile"
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject NavigationManager NavManager
+@inject ProfileService ProfileService
+
+<style>
+    .hide-scrollbar {
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+    }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+    .profile-image-large {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+        border: 4px solid rgba(255,255,255,0.3);
+    }
+</style>
+
+<div class="hide-scrollbar"
+     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #f5f5f7; overflow-y: auto; overflow-x: hidden; z-index: 100;">
+
+    <div class="d-flex flex-column px-6 pt-6 pb-12"
+         style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+
+        <div class="d-flex justify-space-between align-center w-100 mb-6">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           Color="Color.Inherit"
+                           OnClick="@(() => NavManager.NavigateTo("/dashboard"))"
+                           Style="color: white;" />
+
+            <MudText Typo="Typo.h6" Style="color: white; font-weight: 700;">Profile</MudText>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                           Color="Color.Inherit"
+                           OnClick="Logout"
+                           Style="color: rgba(255,255,255,0.9);" />
+        </div>
+
+        <div class="d-flex flex-column align-center w-100">
+            @if (SessionManager.UserProfile != null)
+            {
+                var profileImageSource = ProfileService.GetProfileImageSourceAsync(SessionManager.UserProfile!);
+
+                if (!string.IsNullOrWhiteSpace(profileImageSource.Result))
+                {
+                    <img src="@profileImageSource.Result"
+                         alt="Profile"
+                         class="profile-image-large mb-3" />
+                }
+                else
+                {
+                    <MudAvatar Color="Color.Surface"
+                               Style="height: 100px; width: 100px; font-size: 2.5rem; color: var(--mud-palette-primary); font-weight: bold;"
+                               Class="elevation-4 mb-3">
+                        @GetInitials(SessionManager.UserProfile.UserFullname)
+                    </MudAvatar>
+                }
+
+                <MudText Typo="Typo.h5"
+                         Align="Align.Center"
+                         Style="color: white; font-weight: 800; line-height: 1.2;"
+                         Class="mb-1">
+                    @SessionManager.UserProfile.UserFullname
+                </MudText>
+
+                <!-- Update the role badge section (around line 51) -->
+                <div class="d-flex flex-column align-center gap-2 mt-2">
+                    <!-- Role Badge -->
+                    <div style="background-color: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px;">
+                        <MudText Typo="Typo.caption" Style="color: white; font-weight: 700; letter-spacing: 0.5px;">
+                            @SessionManager.GetRoleDisplayName()
+                        </MudText>
+                    </div>
+                    
+                    <!-- Show department for admins -->
+                    @if (SessionManager.CanViewDepartmentAttendance())
+                    {
+                        <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.85);">
+                            <MudIcon Icon="@Icons.Material.Filled.Business" Size="Size.Small" Style="vertical-align: middle;" />
+                            @SessionManager.GetDepartmentName()
+                        </MudText>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <MudContainer MaxWidth="MaxWidth.False" Class="mt-n8 px-4 pb-8">
+
+        @if (SessionManager.UserProfile == null)
+        {
+            <MudPaper Class="pa-6 rounded-xl d-flex justify-center align-center" Elevation="0">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-5 rounded-xl mb-4" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="d-flex align-center mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Maklumat Peribadi</MudText>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    @InfoRow("ID Pengguna", SessionManager.UserProfile.UserId.ToString())
+                    <MudDivider />
+                    @InfoRow("No. KP", SessionManager.UserProfile.IdentificationNumber)
+                    <MudDivider />
+                    @InfoRow("E-mel", SessionManager.UserProfile.Email)
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-5 rounded-xl mb-4" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="d-flex align-center mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Jabatan</MudText>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    @InfoRow("Jabatan", SessionManager.UserProfile.JabatanName)
+                    <MudDivider />
+                    @InfoRow("Kod", SessionManager.UserProfile.JabatanCode?.ToString())
+                    <MudDivider />
+
+                    <div class="d-flex gap-2">
+                        <div class="flex-grow-1">
+                            @InfoRow("Negeri", SessionManager.UserProfile.JabatanState)
+                        </div>
+                        <div class="flex-grow-1">
+                            @InfoRow("Zon", SessionManager.UserProfile.JabatanZone)
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(SessionManager.UserProfile.JabatanReportTo))
+                    {
+                        <MudDivider />
+                        @InfoRow("Lapor Kepada", SessionManager.UserProfile.JabatanReportTo)
+                    }
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-5 rounded-xl mb-6" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="d-flex align-center mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Security" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Kebenaran Akses</MudText>
+                </div>
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="6">
+                        @AccessBadge("Pelulus", SessionManager.UserProfile.IsLogPelulus)
+                    </MudItem>
+                    <MudItem xs="6">
+                        @AccessBadge("Pengurusan Tertinggi", SessionManager.UserProfile.IsLogPengurusanTertinggi)
+                    </MudItem>
+                    <MudItem xs="6">
+                        @AccessBadge("Log Sub", SessionManager.UserProfile.IsLogSub)
+                    </MudItem>
+                    <MudItem xs="6">
+                        @AccessBadge("Log UI", SessionManager.UserProfile.IsLogUi)
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Add this before "TAMS Mobile v1.0" -->
+            <MudPaper Class="pa-5 rounded-xl mb-4" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="d-flex align-center mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Shield" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Tahap Akses & Kebenaran</MudText>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    <div class="d-flex justify-space-between align-center pa-3 rounded-lg"
+                         style="background-color: #f8f9fa; border-left: 4px solid var(--mud-palette-primary);">
+                        <div>
+                            <MudText Typo="Typo.caption" Style="color: #666;">Peranan</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight: 700; color: var(--mud-palette-primary);">
+                                @SessionManager.GetRoleDisplayName()
+                            </MudText>
+                        </div>
+
+                        @if (SessionManager.IsSuperAdmin())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Color="Color.Primary" Size="Size.Large" />
+                        }
+                        else if (SessionManager.IsDepartmentAdmin())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Color="Color.Info" Size="Size.Large" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Default" Size="Size.Large" />
+                        }
+                    </div>
+
+                    <MudDivider />
+
+                    <!-- Permissions List -->
+                    <div class="d-flex flex-column gap-2">
+                        <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;">Kebenaran Akses:</MudText>
+
+                        @if (SessionManager.CanViewDepartmentAttendance())
+                        {
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                                <MudText Typo="Typo.body2">Lihat Kehadiran Jabatan</MudText>
+                            </div>
+                        }
+
+                        @if (SessionManager.CanApproveRequests())
+                        {
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                                <MudText Typo="Typo.body2">Lulus Permohonan</MudText>
+                            </div>
+                        }
+
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                            <MudText Typo="Typo.body2">Lihat Kehadiran Sendiri</MudText>
+                        </div>
+
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                            <MudText Typo="Typo.body2">Mohon Cuti & Keluar Pejabat</MudText>
+                        </div>
+                    </div>
+                </div>
+            </MudPaper>
+
+            <div class="d-flex justify-center pb-4">
+                <MudText Typo="Typo.caption" Style="color: #bdbdbd;">TAMS Mobile v1.0</MudText>
+            </div>
+        }
+
+    </MudContainer>
+</div>
+
+@code {
+    // 1. Info Row Helper
+    RenderFragment InfoRow(string Label, string Value) => __builder =>
+    {
+        <div class="d-flex flex-column">
+            <MudText Typo="Typo.caption" Style="color: #888;">@Label</MudText>
+            <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@(string.IsNullOrEmpty(Value) ? "-" : Value)</MudText>
+        </div>
+    };
+
+    // 2. Access Badge Helper
+    RenderFragment AccessBadge(string Label, bool IsGranted) => __builder =>
+    {
+        <div class="d-flex align-center justify-space-between pa-2 rounded-lg"
+             style="@($"background-color: {(IsGranted ? "#e8f5e9" : "#f5f5f5")}; border: 1px solid {(IsGranted ? "#c8e6c9" : "#e0e0e0")};")">
+            <MudText Typo="Typo.caption" Style="@($"font-weight: 600; color: {(IsGranted ? "#2e7d32" : "#757575")};")">@Label</MudText>
+            <MudIcon Icon="@(IsGranted? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)"
+                     Size="Size.Small"
+                     Color="@(IsGranted ? Color.Success : Color.Default)"
+                     Style="opacity: 0.8;" />
+        </div>
+    };
+
+    protected override void OnInitialized()
+    {
+        if (!SessionManager.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/");
+        }
+    }
+
+    void Logout()
+    {
+        SessionManager.Logout();
+        NavManager.NavigateTo("/");
+    }
+
+    string GetInitials(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) return "??";
+        var names = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (names.Length == 1) return names[0].Substring(0, Math.Min(2, names[0].Length)).ToUpper();
+        return $"{names[0][0]}{names[^1][0]}".ToUpper();
+    }
+}

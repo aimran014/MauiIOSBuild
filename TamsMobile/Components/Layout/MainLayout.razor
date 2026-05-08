@@ -1,0 +1,25 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<MudLayout Style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; min-height: 100vh; overflow: hidden;">
+    <MudMainContent Style="overflow-y: auto; height: 100vh;">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+<style>
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .mud-main-content::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .mud-main-content {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+</style>

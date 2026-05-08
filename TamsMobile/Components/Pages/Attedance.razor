@@ -1,0 +1,510 @@
+﻿@page "/attendance"
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject AttendanceService AttendanceService
+@inject ProfileService ProfileService
+@inject NavigationManager NavManager
+@inject ReportingService ReportingService
+@inject ExportService ExportService
+
+@using TamsMobile.Models
+@using static TamsMobile.Models.ReportingModel
+
+<style>
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+    .profile-image-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        border: 2px solid rgba(255,255,255,0.3);
+    }
+</style>
+
+<div class="hide-scrollbar"
+     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color:#f5f5f7; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
+
+    <div class="d-flex flex-column px-4 pt-6 pb-10"
+         style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+
+        <div class="d-flex justify-space-between align-center w-100 mb-6">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@(() => NavManager.NavigateTo("/dashboard"))"
+                           Style="color: white;" />
+
+            <MudText Typo="Typo.h6" Style="color: white; font-weight: 700;">Rekod Kehadiran</MudText>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Color="Color.Inherit"
+                           Edge="Edge.End"
+                           OnClick="RefreshData"
+                           Disabled="@isLoading"
+                           Style="color: rgba(255,255,255,0.9);" />
+        </div>
+
+        <div class="d-flex align-center px-2 mb-4">
+            @{
+                var profileImageSource = ProfileService.GetProfileImageSourceAsync(SessionManager.UserProfile!);
+            }
+
+            @if (!string.IsNullOrWhiteSpace(profileImageSource.Result))
+            {
+                <img src="@profileImageSource.Result"
+                     alt="Profile"
+                     class="profile-image-avatar mr-3 elevation-2" />
+            }
+            else
+            {
+                <MudAvatar Color="Color.Surface" Size="Size.Medium" Class="mr-3 elevation-2">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">
+                        @GetInitials(SessionManager.UserProfile?.UserFullname)
+                    </MudText>
+                </MudAvatar>
+            }
+            
+            <div style="line-height: 1.2;">
+                <MudText Typo="Typo.subtitle2" Style="color: white; font-weight: 700;">@SessionManager.UserProfile?.UserFullname</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">@SessionManager.GetDepartmentName()</MudText>
+            </div>
+        </div>
+
+        <!-- Date Picker -->
+        <MudPaper Class="pa-3 rounded-xl" Elevation="0" Style="background-color: rgba(255,255,255,0.95);">
+            <MudDatePicker Label="Pilih Bulan & Tahun"
+                           @bind-Date="selectedDate"
+                           DateFormat="MM/yyyy"
+                           OpenTo="OpenTo.Month"
+                           FixDay="1"
+                           Editable="false"
+                           Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           DisableToolbar="false"
+                           AdornmentIcon="@Icons.Material.Filled.CalendarMonth"
+                           Adornment="Adornment.Start"
+                           Margin="Margin.Dense"
+                           Placeholder="Contoh: 08/2023" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       OnClick="LoadDataForSelectedDate"
+                       Disabled="@(isLoading || selectedDate == null)"
+                       Class="mt-2"
+                       StartIcon="@Icons.Material.Filled.Search">
+                Papar Rekod Kehadiran
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Error"
+                       FullWidth="true"
+                       OnClick="ExportToPdf"
+                       Disabled="@(isLoading || selectedDate == null)"
+                       Class="mt-2"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf">
+                Export Pdf
+            </MudButton>
+        </MudPaper>
+    </div>
+
+    <MudContainer MaxWidth="MaxWidth.False" Class="mt-n8 px-4 pb-6">
+
+        @if (isLoading)
+        {
+            @for (int i = 0; i < 3; i++)
+            {
+                <MudPaper Class="pa-4 mb-3 rounded-xl" Elevation="0">
+                    <MudSkeleton Width="40%" Height="20px" Class="mb-2" />
+                    <MudSkeleton Width="80%" Height="15px" />
+                </MudPaper>
+            }
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="rounded-xl shadow-sm mt-4">
+                @errorMessage
+            </MudAlert>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" OnClick="RefreshData" Class="mt-2">
+                Cuba Semula
+            </MudButton>
+        }
+        else if (!hasSearched)
+        {
+            <MudPaper Class="d-flex flex-column align-center justify-center py-12 rounded-xl mt-4" Elevation="0" Style="background-color: transparent;">
+                <MudIcon Icon="@Icons.Material.Filled.DateRange"
+                         Size="Size.Large"
+                         Color="Color.Primary"
+                         Style="font-size: 4rem; opacity: 0.5;" />
+                <MudText Typo="Typo.subtitle1" Class="mt-4" Color="Color.Secondary">Pilih tarikh untuk melihat rekod</MudText>
+            </MudPaper>
+        }
+        else if (records == null || records.Count == 0)
+        {
+            <MudPaper Class="d-flex flex-column align-center justify-center py-12 rounded-xl mt-4" Elevation="0" Style="background-color: transparent;">
+                <MudIcon Icon="@Icons.Material.Filled.EventBusy"
+                         Size="Size.Large"
+                         Color="Color.Default"
+                         Style="font-size: 4rem; opacity: 0.5;" />
+                <MudText Typo="Typo.subtitle1" Class="mt-4" Color="Color.Secondary">Tiada rekod dijumpai</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-3 mt-4">
+                @foreach (var record in records)
+                {
+                    <MudPaper Class="pa-4 rounded-xl d-flex flex-column" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+
+                        <div class="d-flex justify-space-between align-center mb-3 pb-2 border-b">
+
+                            <!-- LEFT SIDE -->
+                            <div class="d-flex align-center">
+                                <div class="d-flex flex-column align-center justify-center rounded-lg mr-3 px-2 py-1"
+                                        style="background-color: #f0f2f5; min-width: 45px;">
+                                    <MudText Typo="Typo.h6" Style="font-weight: 800; color: #333; line-height: 1;">
+                                        @GetDayNumber(record.FormattedDate)
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Style="font-weight: 600; color: #888; text-transform: uppercase; font-size: 0.65rem;">
+                                        @(record.DayName?.Substring(0, Math.Min(3, record.DayName.Length)) ?? "")
+                                    </MudText>
+                                </div>
+
+                                <div>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 700; color: #444;">
+                                        @record.FormattedDate
+                                    </MudText>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT SIDE (STATUS + BUTTON VERTICAL) -->
+                            <div class="d-flex flex-column align-end">
+                                <MudChip T="string" Color="@GetStatusColor(record)" Size="Size.Small" Variant="Variant.Filled" Style="font-weight: 700;">
+                                    @GetDisplayStatus(record)
+                                </MudChip>
+
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Class="mt-1" @onclick="() => NavigateToKemaskiniAttenandce(record.AttendanceId ?? 0)" />
+                            </div>
+
+                        </div>
+
+                        <MudGrid Spacing="0">
+                            <MudItem xs="6" Class="d-flex align-center border-r pr-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Login" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                                <div>
+                                    <MudText Typo="Typo.caption" Style="color: #aaa;">Masuk</MudText>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">
+                                        @record.FormattedTagIn
+                                    </MudText>
+                                </div>
+                            </MudItem>
+
+                            <MudItem xs="6" Class="d-flex align-center pl-4">
+                                <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Error" Size="Size.Small" Class="mr-2" />
+                                <div>
+                                    <MudText Typo="Typo.caption" Style="color: #aaa;">Keluar</MudText>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">
+                                        @record.FormattedTagOut
+                                    </MudText>
+                                </div>
+                            </MudItem>
+                        </MudGrid>
+
+                        @* Show Keluar Pejabat (Outstation) Details *@
+                        @if (IsKeluarPejabat(record))
+                        {
+                            <MudDivider Class="my-3" />
+
+                            <div class="pa-3 rounded-lg" style="background-color: #e3f2fd; border-left: 4px solid #2196f3;">
+                                <div class="d-flex align-center mb-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Color="Color.Info" Size="Size.Small" Class="mr-2" />
+                                    <MudText Typo="Typo.subtitle2" Style="font-weight: 700; color: #1565c0;">Keluar Pejabat</MudText>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutTypeName))
+                                {
+                                    <div class="mb-2">
+                                        <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;">Jenis Urusan:</MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #333; font-weight: 600;">
+                                            @record.UrusanKeluarPejabat.OutTypeName
+                                        </MudText>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutstationNote))
+                                {
+                                    <div class="mb-2">
+                                        <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;">Catatan:</MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #333; font-style: italic;">
+                                            @record.UrusanKeluarPejabat.OutstationNote
+                                        </MudText>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutstationNewTagOut) || !string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutstationNewTagIn))
+                                {
+                                    <div class="d-flex gap-4 mt-2 pt-2" style="border-top: 1px solid #bbdefb;">
+                                        @if (!string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutstationNewTagOut))
+                                        {
+                                            <div>
+                                                <MudText Typo="Typo.caption" Style="color: #666;">Keluar:</MudText>
+                                                <MudText Typo="Typo.body2" Style="color: #333; font-weight: 600;">@record.UrusanKeluarPejabat.OutstationNewTagOut</MudText>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutstationNewTagIn))
+                                        {
+                                            <div>
+                                                <MudText Typo="Typo.caption" Style="color: #666;">Masuk:</MudText>
+                                                <MudText Typo="Typo.body2" Style="color: #333; font-weight: 600;">@record.UrusanKeluarPejabat.OutstationNewTagIn</MudText>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @* Show Permohonan Details if exists *@
+                        @if (record.HasApplication && record.HasPermohonanLulus != null)
+                        {
+                            <MudDivider Class="my-3" />
+
+                            <div class="pa-3 rounded-lg" style="background-color: #fff3e0; border-left: 4px solid #ff9800;">
+                                <div class="d-flex align-center mb-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Assignment" Color="Color.Warning" Size="Size.Small" Class="mr-2" />
+                                    <MudText Typo="Typo.subtitle2" Style="font-weight: 700; color: #e65100;">Permohonan Kemaskini</MudText>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(record.HasPermohonanLulus.KemaskiniNoteIn))
+                                {
+                                    <div class="mb-2">
+                                        <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;">Alasan Masuk:</MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #333; font-style: italic;">
+                                            @record.HasPermohonanLulus.KemaskiniNoteIn
+                                        </MudText>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(record.HasPermohonanLulus.KemaskiniNoteOut))
+                                {
+                                    <div class="mb-2">
+                                        <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;">Alasan Keluar:</MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #333; font-style: italic;">
+                                            @record.HasPermohonanLulus.KemaskiniNoteOut
+                                        </MudText>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(record.HasPermohonanLulus.KemaskiniNotePelulus))
+                                {
+                                    <div class="d-flex flex-column flex-sm-row align-start align-sm-center mt-2 pt-2" style="border-top: 1px solid #ffcc80; gap: 4px;">
+                                        <MudText Typo="Typo.caption" Style="color: #666; font-weight: 600;" Class="mr-2">Status:</MudText>
+                                        <MudChip T="string"
+                                                 Color="@GetApplicationStatusColor(record.HasPermohonanLulus.StatusName)"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 Style="font-weight: 700; font-size: 0.7rem;">
+                                            @record.HasPermohonanLulus.KemaskiniNotePelulus
+                                        </MudChip>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @* Show regular notes if no application and not Keluar Pejabat *@
+                        @if (!record.HasApplication && !IsKeluarPejabat(record) && (!string.IsNullOrEmpty(record.AttendanceNoteIn) || !string.IsNullOrEmpty(record.AttendanceNoteOut)))
+                        {
+                            <div class="mt-3 pt-2 border-t" style="background-color: #fafafa; border-radius: 8px; padding: 8px;">
+                                <MudText Typo="Typo.caption" Style="color: #666; font-style: italic;">
+                                    <MudIcon Icon="@Icons.Material.Filled.EditNote" Size="Size.Small" Style="font-size: 1rem; vertical-align: middle;" />
+                                    @(record.AttendanceNoteIn) @(string.IsNullOrEmpty(record.AttendanceNoteOut) ? "" : $" / {record.AttendanceNoteOut}")
+                                </MudText>
+                            </div>
+                        }
+
+                    </MudPaper>
+                }
+            </div>
+
+            <div class="d-flex justify-center mt-6 pb-4">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Paparan tamat - @records.Count rekod</MudText>
+            </div>
+        }
+
+    </MudContainer>
+</div>
+
+@code {
+    private List<AttendanceRecord> records = new();
+    private bool isLoading = false;
+    private bool hasSearched = false;
+    private string errorMessage = "";
+    private DateTime? selectedDate = DateTime.Now;
+    private List<ReportBulananIndividuResponse> reportData = new();
+
+    protected override void OnInitialized()
+    {
+        if (!SessionManager.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/");
+            return;
+        }
+    }
+
+    async Task LoadDataForSelectedDate()
+    {
+        if (selectedDate == null)
+        {
+            errorMessage = "Sila pilih tarikh terlebih dahulu.";
+            return;
+        }
+
+        hasSearched = true;
+        await RefreshData();
+    }
+
+    async Task RefreshData()
+    {
+        if (selectedDate == null) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var rawRecords = await AttendanceService.GetAttendanceRecordsAsync(selectedDate.Value);
+
+            if (rawRecords != null)
+            {
+                records = rawRecords;
+            }
+            else
+            {
+                records = new List<AttendanceRecord>();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Gagal memuatkan rekod.";
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task ExportToPdf()
+    {
+        if (selectedDate == null) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        StateHasChanged();
+        try
+        {
+            ReportBulananIndividuRequest request = new ReportBulananIndividuRequest
+            {
+                UserId = SessionManager.UserProfile!.UserId,
+                Bulan = selectedDate.Value.Month,
+                Tahun = selectedDate.Value.Year,
+                DepartmentId = 0,
+                Hierarchy = 1
+            };
+
+            var result = await ReportingService.GetReportBulananIndividuAsync(request);
+
+            if(result.Data != null)
+            {
+                //await ExportService.GenerateReportPdf(result.Data);
+                await ExportService.DownloadAndSharePdf(result.Data);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Gagal menjana PDF.";
+            Console.WriteLine(ex.Message);
+        }
+
+        isLoading = false;
+        errorMessage = string.Empty;
+    }
+
+    bool IsKeluarPejabat(AttendanceRecord record)
+    {
+        return record.StatusKehadiran?.Equals("Keluar Pejabat", StringComparison.OrdinalIgnoreCase) == true 
+               && record.UrusanKeluarPejabat != null;
+    }
+
+    string GetDisplayStatus(AttendanceRecord record)
+    {
+        // If Keluar Pejabat, show the reason type instead
+        if (IsKeluarPejabat(record) && !string.IsNullOrEmpty(record.UrusanKeluarPejabat?.OutTypeName))
+        {
+            return record.UrusanKeluarPejabat.OutTypeName;
+        }
+
+        return string.IsNullOrEmpty(record.DisplayStatus) ? "-" : record.DisplayStatus;
+    }
+
+    Color GetStatusColor(AttendanceRecord record)
+    {
+        if (record.IsWeekend) return Color.Default;
+
+        // Special color for Keluar Pejabat
+        if (IsKeluarPejabat(record)) return Color.Info;
+
+        var status = record.StatusKehadiran?.ToLower() ?? "";
+
+        if (status.Contains("balik awal") 
+            || status.Contains("tidak hadir") 
+            || status.Contains("lewat") 
+            || status.Contains("tidak lengkap") 
+            || status.Contains("lewat dan balik awal")) return Color.Error;
+
+        if (status.Contains("hadir") || status.Contains("present")) return Color.Success;
+        if (status.Contains("cuti") || status.Contains("leave") || status.Contains("cuti umum")) return Color.Info;
+
+        if (!string.IsNullOrEmpty(status)) return Color.Default;
+        return Color.Surface;
+    }
+
+    Color GetApplicationStatusColor(string? statusName)
+    {
+        var status = statusName?.ToLower() ?? "";
+
+        if (status.Contains("lulus") || status.Contains("approved")) return Color.Success;
+        if (status.Contains("tolak") || status.Contains("rejected")) return Color.Error;
+        if (status.Contains("pending") || status.Contains("tunggu")) return Color.Warning;
+
+        return Color.Info;
+    }
+
+    string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "??";
+        var names = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (names.Length == 1) return names[0].Substring(0, Math.Min(2, names[0].Length)).ToUpper();
+        return $"{names[0][0]}{names[^1][0]}".ToUpper();
+    }
+
+    string GetDayNumber(string dateStr)
+    {
+        if (string.IsNullOrEmpty(dateStr)) return "??";
+        var parts = dateStr.Split(new[] { ' ', '-', '/' }, StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? parts[0] : "??";
+    }
+
+    void NavigateToKemaskiniAttenandce(int attendanceId) => NavManager.NavigateTo($"/kemaskiniattendance?id={attendanceId}");
+}

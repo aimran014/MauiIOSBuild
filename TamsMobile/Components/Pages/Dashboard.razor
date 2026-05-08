@@ -1,0 +1,638 @@
+﻿@page "/dashboard"
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject NavigationManager NavManager
+@inject AttendanceService AttendanceService
+@inject ProfileService ProfileService
+@inject GPSService GPSService
+@inject ILogger<Dashboard> Logger
+@inject ISnackbar Snackbar
+@using Microsoft.Extensions.Logging
+@using TamsMobile.Models
+
+<style>
+    .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+    .profile-image {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+</style>
+
+<div class="hide-scrollbar"
+     style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color:#f5f5f7; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
+
+    <div class="d-flex flex-column px-6 pt-6 pb-12"
+         style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+
+        <div class="d-flex justify-space-between align-center w-100 mb-6">
+            <MudText Typo="Typo.h6" Style="color: white; font-weight: 700; letter-spacing: 0.5px;">Dashboard</MudText>
+
+            <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                           Color="Color.Inherit"
+                           Style="color: rgba(255,255,255,0.9);"
+                           OnClick="Logout" />
+        </div>
+
+        <!-- Summary Profile -->
+        <div class="d-flex align-center">
+            @{
+                var profileImageSource = ProfileService.GetProfileImageSourceAsync(SessionManager.UserProfile!);
+            }
+            @if (!string.IsNullOrWhiteSpace(profileImageSource.Result))
+            {
+                <img src="@profileImageSource.Result"
+                     alt="Profile"
+                     class="profile-image mr-4"
+                     @onerror="OnImageError" />
+            }
+            else
+            {
+                <MudAvatar Color="Color.Surface" Size="Size.Large" Style="height: 64px; width: 64px; font-weight: bold; color: var(--mud-palette-primary);" Class="mr-4 elevation-3">
+                    @GetInitials(SessionManager.UserProfile?.UserFullname)
+                </MudAvatar>
+            }
+            <div class="d-flex flex-column">
+                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">Selamat Datang,</MudText>
+                <MudText Typo="Typo.h5" Style="color: white; font-weight: 700; line-height: 1.2;">
+                    @GetFirstName(SessionManager.UserProfile?.UserFullname)
+                </MudText>
+                <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.9);">
+                    @DateTime.Now.ToString("dd MMM yyyy")
+                </MudText>
+                
+                <!-- Role Badge - More Visible -->
+                <MudChip T="string"
+                         Color="@GetRoleChipColor()"
+                         Size="Size.Small"
+                         Variant="Variant.Filled"
+                         Class="mt-2"
+                         Style="font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+                    <MudIcon Icon="@GetRoleIcon()" Size="Size.Small" Class="mr-1" />
+                    @SessionManager.GetRoleDisplayName()
+                </MudChip>
+            </div>
+        </div>
+    </div>
+
+    <MudContainer MaxWidth="MaxWidth.False" Class="mt-n10 px-6 pb-6">
+
+        <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6" Style="background-color: white; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+            <div class="d-flex justify-space-between align-center mb-4 border-b pb-3">
+                <div class="d-flex flex-column">
+                    <MudText Typo="Typo.caption" Style="color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Tahap Akses</MudText>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: 800;">
+                        @SessionManager.GetAccessLevelName().ToUpper()
+                    </MudText>
+                </div>
+                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Class="mr-0" Style="font-weight: 700;">AKTIF</MudChip>
+            </div>
+
+            <MudGrid Spacing="0">
+                <MudItem xs="7" Class="d-flex flex-column border-r pr-3">
+                    <MudText Typo="Typo.caption" Style="color: #999;">Jabatan</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1 text-truncate">
+                        @SessionManager.GetDepartmentName()
+                    </MudText>
+                </MudItem>
+                <MudItem xs="5" Class="d-flex flex-column pl-4">
+                    <MudText Typo="Typo.caption" Style="color: #999;">ID Pengguna</MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1">
+                        @SessionManager.UserProfile?.IdentificationNumber
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (SessionManager.HasTodayWbBdrHarian())
+        {
+            <!-- NEW: Process Checkin/Checkout using mobile -->
+            <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6" Style="background-color: white; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+
+                <!-- HEADER -->
+                <div class="d-flex justify-space-between align-center mb-4 border-b pb-3">
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.caption"
+                                 Style="color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Jenis Waktu Kerja
+                        </MudText>
+
+                        <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: 800;">
+                            @SessionManager.UserProfile?.PeriodName
+                        </MudText>
+                    </div>
+                </div>
+
+                <!-- CONTENT -->
+                <MudGrid Spacing="0">
+
+                    <!-- LOKASI -->
+                    <MudItem xs="7" Class="d-flex flex-column border-r pr-3">
+                        <MudText Typo="Typo.caption" Style="color: #999;">Lokasi</MudText>
+
+                        @if (isGettingLocation)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mt-2" />
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;" Class="mt-1 text-truncate">
+                                @lokasiSemasa
+                            </MudText>
+                        }
+                    </MudItem>
+
+                    <!-- CHECK IN -->
+                    <MudItem xs="5" Class="d-flex flex-column pl-4 justify-center">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="CheckIn" Disabled="isCheckInLoading">
+
+                            @if (isCheckInLoading)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                                <span>Proses...</span>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Login" Class="mr-1" />
+                                <span>Check In</span>
+                            }
+
+                        </MudButton>
+                    </MudItem>
+
+                </MudGrid>
+
+                <!-- Error Messages -->
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <br/>
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-3">
+                        @errorMessage
+                    </MudAlert>
+                }
+            </MudPaper>
+        }
+
+        <!-- NEW: Today's Attendance Card -->
+       @*  <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6" Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); box-shadow: 0 4px 20px rgba(0,0,0,0.1);"> *@
+        <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6" Style="@GetPaperStyle()">
+
+            <div class="d-flex justify-space-between align-center mb-3">
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Today" Color="Color.Surface" Class="mr-2" Size="Size.Medium" />
+                    <MudText Typo="Typo.h6" Style="color: white; font-weight: 700;">Kehadiran Hari Ini</MudText>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                               Color="Color.Surface"
+                               Size="Size.Small"
+                               OnClick="LoadTodayAttendance"
+                               Disabled="@isLoadingAttendance"
+                               Style="color: white;" />
+            </div>
+
+            @if (isLoadingAttendance)
+            {
+                <div class="d-flex justify-center align-center py-4">
+                    <MudProgressCircular Color="Color.Surface" Size="Size.Small" Indeterminate="true" />
+                </div>
+            }
+            else if (todayAttendance != null)
+            {
+                <MudGrid Spacing="2">
+                    <!-- Check IN -->
+                    <MudItem xs="6">
+                        <div class="pa-3 rounded-lg" style="background-color: rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+                            <div class="d-flex align-center mb-2">
+                                <div class="d-flex align-center justify-center rounded-circle mr-2"
+                                     style="width: 32px; height: 32px; background-color: rgba(255,255,255,0.3);">
+                                    <MudIcon Icon="@Icons.Material.Filled.Login" Color="Color.Surface" Size="Size.Small" />
+                                </div>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9); font-weight: 600;">MASUK</MudText>
+                            </div>
+                            <MudText Typo="Typo.h6" Style="color: white; font-weight: 800;">
+                                @(string.IsNullOrEmpty(todayAttendance.FormattedTagIn) ? "--:--" : todayAttendance.FormattedTagIn)
+                            </MudText>
+                        </div>
+                    </MudItem>
+
+                    <!-- Check OUT -->
+                    <MudItem xs="6">
+                        <div class="pa-3 rounded-lg" style="background-color: rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+                            <div class="d-flex align-center mb-2">
+                                <div class="d-flex align-center justify-center rounded-circle mr-2"
+                                     style="width: 32px; height: 32px; background-color: rgba(255,255,255,0.3);">
+                                    <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Surface" Size="Size.Small" />
+                                </div>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9); font-weight: 600;">KELUAR</MudText>
+                            </div>
+                            <MudText Typo="Typo.h6" Style="color: white; font-weight: 800;">
+                                @(string.IsNullOrEmpty(todayAttendance.FormattedTagOut) ? "--:--" : todayAttendance.FormattedTagOut)
+                            </MudText>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- Status Badge -->
+                @if (!string.IsNullOrEmpty(todayAttendance.DisplayStatus))
+                {
+                    <div class="mt-3 d-flex justify-center">
+                        <MudChip T="string"
+                                 Color="Color.Surface"
+                                 Size="Size.Small"
+                                 Variant="Variant.Filled"
+                                 Style="font-weight: 700; background-color: rgba(255,255,255,0.3);">
+                            @todayAttendance.DisplayStatus
+                        </MudChip>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="d-flex flex-column align-center justify-center py-4">
+                    <MudIcon Icon="@Icons.Material.Filled.EventBusy" Color="Color.Surface" Size="Size.Large" Style="opacity: 0.7;" />
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.9); margin-top: 8px;">
+                        Tiada rekod hari ini
+                    </MudText>
+                </div>
+            }
+        </MudPaper>
+
+        <!-- NEW: Attendance Summary Card -->
+        <MudPaper Elevation="0" Class="pa-5 rounded-xl mb-6" Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+            <MudPaper Class="pa-5 rounded-xl mb-4" Elevation="0" Style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="d-flex align-center mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Ringkasan Kehadiran</MudText>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.caption" Style="color: #888;">Tidak Lengkap</MudText>
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@(attendanceSummary?.TidakLengkap ?? 0)</MudText>
+                    </div>
+                    <MudDivider />
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.caption" Style="color: #888;">Tidak Hadir</MudText>
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@(attendanceSummary?.TidakHadir ?? 0)</MudText>
+                    </div>
+                    <MudDivider />
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.caption" Style="color: #888;">Lewat</MudText>
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@(attendanceSummary?.Lewat ?? 0)</MudText>
+                    </div>
+                    <MudDivider />
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.caption" Style="color: #888;">Balik Awal</MudText>
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@(attendanceSummary?.BalikAwal ?? 0)</MudText>
+                    </div>
+                    <MudDivider />
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.caption" Style="color: #888;">Lewat Dan Balik Awal</MudText>
+                        <MudText Typo="Typo.body2" Style="font-weight: 600; color: #333;">@(attendanceSummary?.LewatDanBalikAwal ?? 0)</MudText>
+                    </div>
+                    <MudDivider />
+                </div>
+            </MudPaper>
+        </MudPaper>
+
+        <MudText Typo="Typo.h6" Class="mb-4 ml-1" Style="font-weight: 700; color: #333;">Menu Utama</MudText>
+
+        <MudGrid Spacing="3">
+            
+            <!-- Approvers Only: Pengurusan Kelulusan (SuperAdmin, Department Admin, and Pelulus) -->
+            @if (SessionManager.CanApproveRequests())
+            {
+@*                 <MudItem xs="12">
+                    <MudPaper Class="d-flex align-center py-4 px-4 rounded-xl"
+                              Elevation="0"
+                              Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); cursor: pointer;"
+                              @onclick="@(() => NavManager.NavigateTo("/approval-management"))">
+                        
+                        <div class="d-flex align-center justify-center rounded-lg mr-4"
+                             style="width: 56px; height: 56px; background-color: rgba(255,255,255,0.3);">
+                            <MudIcon Icon="@Icons.Material.Filled.Approval" 
+                                     Color="Color.Surface" 
+                                     Size="Size.Large" />
+                        </div>
+
+                        <div class="d-flex flex-column flex-grow-1">
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: white;">
+                                Pengurusan Kelulusan
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.9);">
+                                Lulus/Tolak Permohonan
+                            </MudText>
+                        </div>
+
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Surface" />
+                    </MudPaper>
+                </MudItem>
+ *@            }
+
+            <!-- Department Admin Only: View Department Attendance -->
+            @if (SessionManager.IsDepartmentAdmin())
+            {
+@*                 <MudItem xs="12">
+                    <MudPaper Class="d-flex align-center py-4 px-4 rounded-xl"
+                              Elevation="0"
+                              Style="background-color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+                              @onclick="@(() => NavManager.NavigateTo("/department-attendance"))">
+                        
+                        <div class="d-flex align-center justify-center rounded-lg mr-4"
+                             style="width: 56px; height: 56px; background-color: #e3f2fd;">
+                            <MudIcon Icon="@Icons.Material.Filled.Business" 
+                                     Color="Color.Info" 
+                                     Size="Size.Medium" />
+                        </div>
+
+                        <div class="d-flex flex-column flex-grow-1">
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">
+                                Kehadiran Jabatan
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color: #888;">
+                                @SessionManager.GetDepartmentName()
+                            </MudText>
+                        </div>
+
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                    </MudPaper>
+                </MudItem>
+ *@            }
+
+            <!-- All Users: My Attendance -->
+            <MudItem xs="12">
+                <MudPaper Class="d-flex align-center py-4 px-4 rounded-xl"
+                          Elevation="0"
+                          Style="background-color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+                          @onclick="NavigateToAttendance">
+
+                    <div class="d-flex align-center justify-center rounded-lg mr-4"
+                         style="width: 56px; height: 56px; background-color: var(--mud-palette-primary-hover);">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" Size="Size.Medium" />
+                    </div>
+
+                    <div class="d-flex flex-column flex-grow-1">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Kehadiran Saya</MudText>
+                        <MudText Typo="Typo.caption" Style="color: #888;">Rekod Masuk & Keluar</MudText>
+                    </div>
+
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" style="opacity: 0.3;" />
+                </MudPaper>
+            </MudItem>
+
+            <!-- All Users: My Rekod Imbasan -->
+            <MudItem xs="12">
+                <MudPaper Class="d-flex align-center py-4 px-4 rounded-xl"
+                          Elevation="0"
+                          Style="background-color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+                          @onclick="NavigateToRekodImbasan">
+
+                    <div class="d-flex align-center justify-center rounded-lg mr-4"
+                         style="width: 56px; height: 56px; background-color: var(--mud-palette-primary-hover);">
+                        <MudIcon Icon="@Icons.Material.Filled.EventRepeat" Color="Color.Primary" Size="Size.Medium" />
+                    </div>
+
+                    <div class="d-flex flex-column flex-grow-1">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Rekod Imbasan</MudText>
+                        <MudText Typo="Typo.caption" Style="color: #888;">Imbasan Masuk & Keluar</MudText>
+                    </div>
+
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" style="opacity: 0.3;" />
+                </MudPaper>
+            </MudItem>
+
+            <!-- All Users: Profile -->
+            <MudItem xs="12">
+                <MudPaper Class="d-flex align-center py-4 px-4 rounded-xl"
+                          Elevation="0"
+                          Style="background-color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+                          @onclick="NavigateToProfile">
+
+                    <div class="d-flex align-center justify-center rounded-lg mr-4"
+                         style="width: 56px; height: 56px; background-color: var(--mud-palette-info-hover);">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Info" Size="Size.Medium" />
+                    </div>
+
+                    <div class="d-flex flex-column flex-grow-1">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #333;">Profile</MudText>
+                        <MudText Typo="Typo.caption" Style="color: #888;">Maklumat Peribadi & Akaun</MudText>
+                    </div>
+
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" style="opacity: 0.3;" />
+                </MudPaper>
+            </MudItem>
+            
+        </MudGrid>
+    </MudContainer>
+
+    <div class="d-flex justify-center mt-8 pb-8">
+        <MudText Typo="Typo.caption" Style="color: #bdbdbd;">v1.0.0</MudText>
+    </div>
+</div>
+
+@code {
+    private AttendanceRecord? todayAttendance;
+    private bool isLoadingAttendance = false;
+    string StatusColor = "kuning"; // or "merah", "hijau"
+    private AttendanceSummary? attendanceSummary;
+
+    string lokasiSemasa = "Mengesan lokasi...";
+    bool isGettingLocation = true;
+    bool isCheckInLoading = false;
+    private GPSModel currentLocation = new();
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SessionManager.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/");
+            return;
+        }
+
+        // Debug logging
+        Logger.LogInformation("Dashboard loaded");
+        Logger.LogInformation("Has UserProfile: {HasProfile}", SessionManager.UserProfile != null);
+        if (SessionManager.UserProfile != null)
+        {
+            Logger.LogInformation("ImageType: {ImageType}", SessionManager.UserProfile.ImageType ?? "null");
+            Logger.LogInformation("ImageBase64 Length: {Length}", SessionManager.UserProfile.ImageBase64?.Length ?? 0);
+        }
+
+        // Load today's attendance
+        await LoadTodayAttendance();
+        await GetLocation();
+    }
+
+    async Task LoadTodayAttendance()
+    {
+        isLoadingAttendance = true;
+        StateHasChanged();
+
+        try
+        {
+            var records = await AttendanceService.GetAttendanceRecordsAsync(DateTime.Now);
+
+            if (records != null && records.Count > 0)
+            {
+                // Get today's record
+                todayAttendance = records.FirstOrDefault(r => r.FormattedDate?.Contains(DateTime.Now.Day.ToString()) == true);
+            }
+            else
+            {
+                todayAttendance = null;
+            }
+
+            Logger.LogInformation("Today's attendance loaded: {HasRecord}", todayAttendance != null);
+
+            // Get Attendance Sumamry records
+            var summaryRecords = await AttendanceService.GetAttendanceSummaryAsync(DateTime.Now.Month, DateTime.Now.Year);
+            attendanceSummary = summaryRecords.Data;
+            StatusColor = summaryRecords?.Data?.WarnaKad?.ToUpper() ?? "KUNING";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load today's attendance");
+            todayAttendance = null;
+        }
+        finally
+        {
+            isLoadingAttendance = false;
+            StateHasChanged();
+        }
+    }
+
+    // Get WB color based on StatusColor
+    string GetPaperStyle()
+    {
+        var gradient = StatusColor.ToLower() switch
+        {
+            "kuning" => "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
+            "merah" => "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+            "hijau" => "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)",
+            _ => "linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)"
+        };
+
+        return $"background: {gradient}; box-shadow: 0 4px 20px rgba(0,0,0,0.1);";
+    }
+
+    // Get role-specific chip color
+    Color GetRoleChipColor()
+    {
+        if (SessionManager.IsSuperAdmin()) return Color.Error;      // Red for SuperAdmin
+        if (SessionManager.IsDepartmentAdmin()) return Color.Warning; // Orange for Department Admin
+        return Color.Info;                                           // Blue for Normal User
+    }
+
+    // Get role-specific icon
+    string GetRoleIcon()
+    {
+        if (SessionManager.IsSuperAdmin()) return Icons.Material.Filled.VerifiedUser;
+        if (SessionManager.IsDepartmentAdmin()) return Icons.Material.Filled.AdminPanelSettings;
+        return Icons.Material.Filled.Person;
+    }
+
+    bool HasProfileImage()
+    {
+        var hasImage = SessionManager.UserProfile != null && 
+                       !string.IsNullOrWhiteSpace(SessionManager.UserProfile.ImageBase64) &&
+                       !string.IsNullOrWhiteSpace(SessionManager.UserProfile.ImageType);
+
+        Logger.LogInformation("HasProfileImage: {HasImage}", hasImage);
+        return hasImage;
+    }
+
+    void OnImageError(Microsoft.AspNetCore.Components.Web.ErrorEventArgs e)
+    {
+        Logger.LogError("Image failed to load");
+    }
+
+    void NavigateToAttendance() => NavManager.NavigateTo("/attendance");
+
+    void NavigateToRekodImbasan() => NavManager.NavigateTo("/rekodimbasan");
+
+    void NavigateToProfile() => NavManager.NavigateTo("/profile");
+
+    void NavigateToReportBulananIndividu() => NavManager.NavigateTo("/reportbulananindividu");
+
+    void Logout()
+    {
+        SessionManager?.Logout();
+        NavManager.NavigateTo("/");
+    }
+
+    string GetInitials(string? fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return "??";
+        var names = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (names.Length == 1) return names[0].Substring(0, Math.Min(2, names[0].Length)).ToUpper();
+        return $"{names[0][0]}{names[^1][0]}".ToUpper();
+    }
+
+    string GetFirstName(string? fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return "Pengguna";
+        var parts = fullName.Split(' ');
+        return parts.Length > 0 ? parts[0] : fullName;
+    }
+
+    async Task GetLocation()
+    {
+        try
+        {
+            isGettingLocation = true;
+
+            var locationResponse = await GPSService.FetchCurrentLocationAsync();
+            var location = locationResponse?.Data;
+
+            if (location != null)
+            {
+                lokasiSemasa = location?.Address_1 ?? "Lokasi tidak dijumpai"; //$"Lat: {location.Latitude:F5}, Lon: {location.Longitude:F5}";
+                currentLocation = location!;
+            }
+            else
+            {
+                lokasiSemasa = "Lokasi tidak dijumpai";
+                errorMessage = locationResponse?.Messages ?? "Gagal mendapatkan lokasi";
+                isCheckInLoading = true;
+            }
+        }
+        catch
+        {
+            lokasiSemasa = "Gagal mendapatkan lokasi";
+            errorMessage = "Gagal mendapatkan lokasi. Sila pastikan GPS diaktifkan dan cuba lagi.";
+            isCheckInLoading = true;
+        }
+
+        isGettingLocation = false;
+    }
+
+    async Task CheckIn()
+    {
+        isCheckInLoading = true;
+
+        // Call your API here
+        var result = await AttendanceService.CaptureAttendanceAsync(SessionManager.UserProfile?.IdentificationNumber!, currentLocation.Latitude!, currentLocation.Longitude!, lokasiSemasa);
+
+        if (result.Success)
+        {
+            Snackbar.Add("Kehadiran berjaya direkod ✅", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Messages ?? "Gagal hantar kehadiran ❌", Severity.Error);
+        }
+
+        isCheckInLoading = false;
+    }
+}

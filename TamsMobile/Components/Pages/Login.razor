@@ -1,0 +1,156 @@
+﻿@page "/"
+@layout TamsMobile.Components.Layout.MainLayout
+@inject UserSessionManager SessionManager
+@inject NavigationManager NavManager
+
+<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ffffff; overflow-y: auto; overflow-x: hidden;">
+    
+    <MudContainer MaxWidth="MaxWidth.False" Class="d-flex flex-column align-center justify-center mud-height-full pa-6">
+        
+        <div class="d-flex flex-column align-center mb-10 w-100">
+            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Style="height: 90px; width: 90px;" Class="mb-6 elevation-0">
+                <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Style="font-size: 3.5rem;" />
+            </MudAvatar>
+            
+            <MudText Typo="Typo.h4" Style="font-weight: 800; color: #333333;" Align="Align.Center" Class="mb-1">
+                Selamat Kembali
+            </MudText>
+            <MudText Typo="Typo.body1" Style="color: #888888;" Align="Align.Center">
+                Log masuk untuk meneruskan
+            </MudText>
+        </div>
+
+        <MudForm @ref="form" Class="w-100" Style="max-width: 400px;">
+            
+            <MudTextField T="string" 
+                          Label="No. Kad Pengenalan" 
+                          @bind-Value="identificationNumber" 
+                          Variant="Variant.Outlined" 
+                          Class="mb-5" 
+                          Disabled="@isLoading"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.PersonOutline"
+                          AdornmentColor="Color.Primary"
+                          InputMode="InputMode.numeric" 
+                          Pattern="[0-9]*"
+                          Placeholder="Contoh: 950101..." 
+                          Immediate="true" 
+                          MaxLength="12" />
+            
+           <MudTextField T="string" 
+                          Label="Kata Laluan" 
+                          @bind-Value="password" 
+                          Variant="Variant.Outlined" 
+                          InputType="@_passwordInputType" 
+                          Class="mb-8" 
+                          Disabled="@isLoading"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Lock" 
+                          AdornmentColor="Color.Primary"
+                          OnKeyDown="@HandleEnterKey">
+                 <AdornmentEnd>
+                     <MudIconButton Icon="@(_isShowPassword ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)" 
+                                    OnClick="TogglePasswordVisibility"
+                                    Edge="Edge.End"
+                                    Color="Color.Default" />
+                 </AdornmentEnd>
+            </MudTextField>
+
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       Size="Size.Large" 
+                       FullWidth="true" 
+                       OnClick="DoLogin" 
+                       Disabled="@isLoading"
+                       Class="py-4 rounded-lg elevation-0"
+                       Style="font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">
+                @if (isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
+                    <span>Memproses...</span>
+                }
+                else
+                {
+                    <span>Log Masuk</span>
+                }
+            </MudButton>
+
+        </MudForm>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" 
+                      Variant="Variant.Filled" 
+                      Class="rounded-lg mt-4 w-100" 
+                      Style="max-width: 400px;" 
+                      ShowCloseIcon="true" 
+                      CloseIconClicked="() => errorMessage = string.Empty">
+                @errorMessage
+            </MudAlert>
+        }
+
+    </MudContainer>
+</div>
+
+@code {
+    string identificationNumber = "";
+    string password = "";
+    string errorMessage = "";
+    bool isLoading;
+    bool _isShowPassword;
+    InputType _passwordInputType = InputType.Password;
+    MudForm? form;
+
+    void TogglePasswordVisibility()
+    {
+        _isShowPassword = !_isShowPassword;
+        _passwordInputType = _isShowPassword ? InputType.Text : InputType.Password;
+    }
+
+    async Task HandleEnterKey(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            await DoLogin();
+        }
+    }
+
+    async Task DoLogin()
+    {
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(identificationNumber) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Sila masukkan No. KP dan Kata Laluan.";
+            return;
+        }
+
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Fix: Explicitly type the variables
+            (bool success, string message) = await SessionManager.LoginAsync(identificationNumber, password);
+
+            if (success)
+            {
+                NavManager.NavigateTo("/dashboard");
+            }
+            else
+            {
+                errorMessage = message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ralat rangkaian atau pelayan.";
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}
