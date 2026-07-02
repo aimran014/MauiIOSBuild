@@ -4,58 +4,64 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ios:
+  build:
+
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+    - uses: actions/checkout@v4
 
-      - name: Install MAUI
-        run: dotnet workload install maui
-		
-		- name: Install Certificate
-		  env:
-			CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
-			CERT_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-		  run: |
+    - name: Install .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
 
-			echo "$CERTIFICATE" | base64 --decode > certificate.p12
+    - name: Install MAUI
+      run: |
+        dotnet workload install maui
 
-			security create-keychain -p "" build.keychain
+    - name: Install Certificate
+      env:
+        CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+        CERT_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      run: |
 
-			security default-keychain -s build.keychain
+        echo "$CERTIFICATE" | base64 --decode > certificate.p12
 
-			security unlock-keychain -p "" build.keychain
+        security create-keychain -p "" build.keychain
 
-			security import certificate.p12 \
-			  -k build.keychain \
-			  -P "$CERT_PASSWORD" \
-			  -T /usr/bin/codesign
+        security default-keychain -s build.keychain
 
-		- name: Install Provisioning Profile
-		  env:
-			PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
-		  run: |
+        security unlock-keychain -p "" build.keychain
 
-			mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        security import certificate.p12 \
+          -k build.keychain \
+          -P "$CERT_PASSWORD" \
+          -T /usr/bin/codesign
 
-			echo "$PROFILE" | base64 --decode \
-			  > ~/Library/MobileDevice/Provisioning\ Profiles/TAMS_Mobile_LPPKN.mobileprovision
-		  
-      - name: Restore
-        run: dotnet restore
+    - name: Install Provisioning Profile
+      env:
+        PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+      run: |
 
-      - name: Build iOS
-        run: |
-          dotnet publish -f net8.0-ios -c Release /p:BuildIpa=true /p:EnableCodeSigning=false
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
+        echo "$PROFILE" | base64 --decode \
+          > ~/Library/MobileDevice/Provisioning\ Profiles/TAMS_Mobile_LPPKN.mobileprovision
+
+    - name: Restore
+      run: dotnet restore
+
+    - name: Publish
+      run: |
+        dotnet publish \
+          -f net8.0-ios \
+          -c Release \
+          /p:ArchiveOnBuild=true
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
           name: ios-ipa
           path: "**/*.ipa"
