@@ -42,7 +42,13 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
         <AndroidSigningKeyStore>MyApp.keystore</AndroidSigningKeyStore>
     </PropertyGroup>
+  <PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
 
+    <CodesignKey>Apple Distribution</CodesignKey>
+
+    <CodesignProvision>TAMS Mobile LPPKN</CodesignProvision>
+
+  </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-android|AnyCPU'">
       <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
       <AndroidKeyStore>False</AndroidKeyStore>
@@ -83,6 +89,17 @@
         
         <!-- Raw Assets -->
         <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <MauiImage Remove="Resources\Images\Jata_Negara.png" />
+      <MauiImage Remove="Resources\Images\Prymax_Logo.png" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Resources\AppIcon\appicon - Copy.svg" />
+      <None Remove="Resources\Images\Jata_Negara.png" />
+      <None Remove="Resources\Images\Prymax_Logo.png" />
     </ItemGroup>
 
     <ItemGroup>
