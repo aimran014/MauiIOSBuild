@@ -22,10 +22,10 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>TAMS MOBILE</ApplicationTitle>
+        <ApplicationTitle>PRYMAX TECH</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.prymax.www.TAMS.KPLB</ApplicationId>
+        <ApplicationId>com.prymax.www.PRYMAX-TECH</ApplicationId>
 
         <!-- Versions -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
