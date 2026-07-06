@@ -1,0 +1,75 @@
+**************IMPORTANCE***************
+****REQUIRED .NET8.x OR .NET9.xx ******
+***************************************
+
+Step 1 - Request Certificate on Macbook
+	- Open Mac and search for Keychain Access
+	- click Keychain Access at the top taskbar OS
+	- select Certificate Assistance  and click Request a Certificate From a Certificate Authority...
+		User Email Address : prymaxdeveloper@gmail.com
+		Common Name : PRYMAX AIMRAN
+		Request is : Saved to disk
+	- save request.
+
+Step 2 - Create iOS Distribution Certificate
+	- open browser and open https://developer.apple.com
+	- login account as prymax developer
+		username : prymaxdeveloper@gmail.com
+		password : K@mbing1
+	- at dashboard, select Account at avatar icon
+	- Select Certificates,IDs & Profiles 
+		> click on Certificates 
+		> click Add to add new certificate 
+		> select Apple Distribution radio button 
+		> upload Request a Certificate From a Certificate Authority...
+	- download Apple Distribution.cer
+	
+Step 3 - Export .cer to P12 with passowrd using Macbook
+	- copy Apple Distribution.cer and paste at Macbook
+	- double click on Apple Distribution.cer to install in Keychain Access.
+	- at Default Keychain > login, select My Certificates
+	- right-click on Apple Distribution:PRYMAX TECHNOLOGIES SDN BHD(ID)
+	- click on Export 'Apple Distribution: PRYMAX TECHONOLOGIES SDN BHD'
+		Save as : Certificates
+		File Format : Personal Information Exchange(.p12)
+	-save
+	
+Step 4 - Create Provisioning Profiles
+	- at developer.apple.com go to Certificates, Identifiers & Profiles > select Profiles > click Add button to add profile
+		> under Distribution, select Ad Hoc or App Store Connect
+		> Select an App ID
+		> enter Provisioning Profile Name
+		> download TAMS_Mobile_LPPKN.mobileprovision
+		
+Step 5 - Convert .p12 & .mobileprovision to base64 using Powershell
+	- [Convert]::ToBase64String(
+		>>     [IO.File]::ReadAllBytes("C:\Users\Lenovo Z50\Downloads\Certificates.p12")
+		>> )
+	- [Convert]::ToBase64String(
+		>>     [IO.File]::ReadAllBytes("C:\Users\Lenovo Z50\Downloads\TAMS_Mobile_LPPKN.mobileprovision")
+		>> )
+	
+Step 6 - Add GitHub Secret
+	- Open GitHub
+	- select project mobile
+	- slect Setting
+	- select Secrect and variable > click on Action
+	- click button New Repository secret
+		1. IOS_CERTIFICATE = Certificates.p12 convert to base64
+		2. IOS_CERTIFICATE_PASSWORD = Certificates.p12 password (Example : 123456)
+		3. IOS_PROVISIONING_PROFILE = TAMS_Mobile_LPPKN.mobileprovision convert to base64
+
+
+
+
+
+
+
+
+
+------Save base64 as txt
+PS D:\AppleCertificate> $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("D:\AppleCertificate\distribution.p12"))
+>> Set-Content -Path "D:\AppleCertificate\distribution_base64.txt" -Value $base64
+PS D:\AppleCertificate> $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("D:\AppleCertificate\profile.mobileprovision"))
+>> Set-Content -Path "D:\AppleCertificate\profile_mobileprovision_base64.txt" -Value $base64
+	

@@ -22,10 +22,10 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>PRYMAX TECH</ApplicationTitle>
+        <ApplicationTitle>PRYMAX AIMRAN</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.prymax.www.PRYMAX-TECH</ApplicationId>
+        <ApplicationId>com.aimran.tamsmobile</ApplicationId>
 
         <!-- Versions -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -45,8 +45,6 @@
   <PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
 
     <CodesignKey>Apple Distribution</CodesignKey>
-
-    <CodesignProvision>TAMS Mobile LPPKN</CodesignProvision>
 
   </PropertyGroup>
     <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net9.0-android|AnyCPU'">
