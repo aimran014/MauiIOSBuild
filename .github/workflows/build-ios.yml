@@ -48,7 +48,7 @@ jobs:
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 
         echo "$PROFILE" | base64 --decode \
-          > ~/Library/MobileDevice/Provisioning\ Profiles/TAMS_Mobile_LPPKN.mobileprovision
+          > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 
     - name: Restore
       run: dotnet restore
