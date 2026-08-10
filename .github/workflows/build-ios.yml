@@ -1,67 +1,62 @@
-name: Build MAUI iOS
+name: Build MAUI iOS - Unsigned
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-
-    runs-on: macos-15
+    runs-on: macos-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - uses: actions/checkout@v4
+      - name: Install .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
-    - name: Install .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
+      - name: Install MAUI
+        run: |
+          dotnet workload install maui
 
-    - name: Install MAUI
-      run: |
-        dotnet workload install maui
+      - name: Restore
+        run: |
+          dotnet restore
 
-    - name: Install Certificate
-      env:
-        CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
-        CERT_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-      run: |
+      - name: Build unsigned iOS
+        run: |
+          dotnet publish \
+            -f net8.0-ios \
+            -c Release \
+            -r ios-arm64 \
+            -p:EnableCodeSigning=false \
+            -p:ProvisioningType=Manual
 
-        echo "$CERTIFICATE" | base64 --decode > certificate.p12
+      - name: Show build output
+        run: |
+          find . -name "*.app" -type d
 
-        security create-keychain -p "" build.keychain
+      - name: Create unsigned IPA
+        run: |
+          APP_PATH=$(find . -path "*/publish/*.app" -type d | head -n 1)
 
-        security default-keychain -s build.keychain
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: .app was not found"
+            exit 1
+          fi
 
-        security unlock-keychain -p "" build.keychain
+          echo "Found app:"
+          echo "$APP_PATH"
 
-        security import certificate.p12 \
-          -k build.keychain \
-          -P "$CERT_PASSWORD" \
-          -T /usr/bin/codesign
+          mkdir -p unsigned-ipa/Payload
+          cp -R "$APP_PATH" unsigned-ipa/Payload/
 
-    - name: Install Provisioning Profile
-      env:
-        PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
-      run: |
+          cd unsigned-ipa
+          zip -r ../TamsMobile-unsigned.ipa Payload
 
-        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-
-        echo "$PROFILE" | base64 --decode \
-          > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
-
-    - name: Restore
-      run: dotnet restore
-
-    - name: Publish
-      run: |
-        dotnet publish \
-          -f net8.0-ios \
-          -c Release \
-          /p:ArchiveOnBuild=true
-
-    - name: Upload IPA
-      uses: actions/upload-artifact@v4
-      with:
-          name: ios-ipa
-          path: "**/*.ipa"
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-ipa
+          path: TamsMobile-unsigned.ipa
